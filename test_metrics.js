@@ -1,54 +1,5 @@
-const puppeteer = require('puppeteer');
 const urllib = require('url');
 const http = require('http');
-
-testMeta={
-  // 'product':'bing',
-  'product':'fidelity',
-  'env':'prod',
-  'pgNm':'homepage'
-}
-
-async function testAmazon(testMeta){
-  const browser = await puppeteer.launch({
-    headless:false,
-    args:[
-      "--enable-precise-memory-info"
-    ]
-  })
-  const page = await browser.newPage()
-  await page.setViewport({width:1400,height:900})
-  let startTime=Date.now()
-  // await page.goto('http://bing.com')
-  //
-  // await page.waitForSelector("#crs_scroll", {visible:true})
-  await page.goto('http://fidelity.com')
-
-  await page.waitForSelector("#fs-login-button", {visible:true})
-
-
-  // await page.goto('http://amazon.com')
-  //
-  // await page.type('#twotabsearchtextbox', 'cheeky monkey', {delay:100})
-  //
-  //
-  // await page.waitForSelector("[id~=result_2]",{visible:true})
-  // await page.click("[id~=result_2]")
-  // await page.waitForSelector("#ad",{visible:true})
-
-  let total_metrics = await collectMetrics(page,testMeta,startTime,[])
-  console.log(JSON.stringify(total_metrics),'total_metrics')
-
-  await sendMetrics(page,'http://localhost:8080/page',total_metrics.page.send)
-  await sendMetrics(page,'http://localhost:8080/resource',total_metrics.resourceLine)
-  // await sendMetrics(page,'http://localhost:8080/browser',total_metrics.browser)
-
-
-  await browser.close()
-}
-
-testAmazon(testMeta)
-
 //******************************************************************************
 //  Async function to capture Performance metrics
 //  Types include:
@@ -59,10 +10,9 @@ testAmazon(testMeta)
 //    'metrics' - puppeteer page metrics not exposed out
 //
 // ******************************************************************************/
-async function collectMetrics(page,testMeta,startTime,types){
+exports.collectMetrics = async function(page,testMeta,startTime,types){
   console.log('-- collectMetrics --')
-  console.log(testMeta,'testMeta')
-
+  // console.log(testMeta,'testMeta')
 
   metrics={}
 
@@ -85,21 +35,22 @@ async function collectMetrics(page,testMeta,startTime,types){
   let resource_object = parseResources(res)
 
   console.timeEnd('captureResources')
-  console.log(resource_object,'resource_object')
+  // console.log(resource_object,'resource_object')
 
 
   //***********************************************************************
   //  Navigation Timing
   // nav=performance.getEntriesByType('navigation')[0]
-
+  console.time('captureNav')
   const nav = JSON.parse(await page.evaluate(
         () => JSON.stringify(window.performance.getEntriesByType('navigation'))
       ));
-  console.log('immediately after const=nav...')
-  console.log(nav[0])
+
+  // console.log(nav[0])
 
   const navigation_object = navTiming(nav[0])
-  console.log(navigation_object)
+  console.timeEnd('captureNav')
+  // console.log(navigation_object)
 
   // Add Navigation Timing to other Resources
   if(resource_object[navigation_object['host']]===undefined) resource_object[navigation_object['host']]=[]
@@ -112,10 +63,10 @@ async function collectMetrics(page,testMeta,startTime,types){
   startTime = startTime > 0 ? startTime : ns
   resLine=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+"'"+startTime+'!'
   for(s in resource_object){
-    console.log(s)
+    // console.log(s)
     resLine+=s+'('+resource_object[s].join('+')+')'
   }
-  console.log(resLine)
+  // console.log(resLine)
   metrics['resourceLine']=resLine
   // ----------------------------------------------------
 
@@ -141,7 +92,7 @@ async function collectMetrics(page,testMeta,startTime,types){
   browserMetrics['memory']=memory
 
   let finalBrowserMetrics = browserProcess(browserMetrics,testMeta,ns)
-
+  finalBrowserMetrics.send=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+'!'+finalBrowserMetrics.send
   metrics['browser']=finalBrowserMetrics
   //!!!!!!!!!!!!!!  Later !!!!!!!!!!!!!!!!!!
   // //***********************************************************************
@@ -152,7 +103,7 @@ async function collectMetrics(page,testMeta,startTime,types){
   //
   // }
 
-  console.log(metrics)
+  console.log(Object.keys(metrics))
   return metrics
 
 }
@@ -162,8 +113,8 @@ async function collectMetrics(page,testMeta,startTime,types){
 // Metrics Sending function
 //  --- Only for puppeteer ---
 //  -- use the add img element in RUM --
-function sendMetrics(page,path,data){
-  console.log('--- in sendMetrics')
+exports.sendMetrics = function(page,path,data){
+  // console.log('--- in sendMetrics')
 
   // await page.evaluate((path,data) => window.navigator.sendBeacon(path,data) ) <-- Try again in a RUM environment
 
@@ -188,20 +139,21 @@ function sendMetrics(page,path,data){
 
 // Browser Metrics
 function browserProcess(browser_ob,meta,navStart){
-  console.log('--- in browser function')
-  console.log('browser_ob',browser_ob)
-  console.log('meta',meta)
+  console.log('---test_metrics--- in browser metrics function')
+  // console.log('browser_ob',browser_ob)
+  // console.log('meta',meta)
   //
   b={}
 
   b.dom_nodes=browser_ob.Nodes;
-  b.layout=browser_ob.LayoutCount+'-'+Math.round(browser_ob.LayoutDuration*1000)/1000;
-  b.recalc_style=browser_ob.RecalcStyleCount+'-'+Math.round(browser_ob.RecalcStyleDuration*1000)/1000;
-  b.scripts=Math.round(browser_ob.ScriptDuration*1000)/1000;
+  b.layout=browser_ob.LayoutCount+'-'+Math.round(browser_ob.LayoutDuration*1000);
+  b.recalc_style=browser_ob.RecalcStyleCount+'-'+Math.round(browser_ob.RecalcStyleDuration*1000);
+  b.scripts=Math.round(browser_ob.ScriptDuration*1000);
   b.js_event_listeners=browser_ob.JSEventListeners;
-  b.task=Math.round(browser_ob.TaskDuration*1000)/1000;
+  b.task=Math.round(browser_ob.TaskDuration*1000);
   b.mem=browser_ob.memory.used+'-'+browser_ob.memory.total+'-'+browser_ob.memory.limit
 
+  b.send=b.dom_nodes+"'"+b.layout+"'"+b.recalc_style+"'"+b.scripts+"'"+b.task+"'"+b.js_event_listeners+"'"+browser_ob.memory.used+"'"+browser_ob.memory.total+"'"+browser_ob.memory.limit
   //
   // tLine=navStart+"'"+t.red+"'"+t.dns+"'"+t.tcp+"'"+t.ttfb+"'"+t.html+"'"+t.fpaint+"'"+t.fpaintC+"'"+t.pgl
   //
@@ -214,9 +166,9 @@ function browserProcess(browser_ob,meta,navStart){
 
 // Navigation Timing 1.0
 function timing(nav_ob,paint,navStart){
-  console.log('--- in timing function')
-  console.log('nav_ob',nav_ob)
-  console.log('paint',paint)
+  console.log('---test_metrics--- in timing metrics function')
+  // console.log('nav_ob',nav_ob)
+  // console.log('paint',paint)
   t={}
   t.red = Math.round(nav_ob.redirectEnd)
   t.dns = Math.round(nav_ob.domainLookupEnd)
@@ -229,7 +181,7 @@ function timing(nav_ob,paint,navStart){
     if(p.name.indexOf('contentful') == -1) {t.fpaint = Math.round(p.startTime)}
   })
 
-  console.log(t,'t in timing')
+  // console.log(t,'t in timing')
 
   tLine=navStart+"'"+t.red+"'"+t.dns+"'"+t.tcp+"'"+t.ttfb+"'"+t.html+"'"+t.fpaint+"'"+t.fpaintC+"'"+t.pgl
 
@@ -240,7 +192,7 @@ function timing(nav_ob,paint,navStart){
 
 // Navigation Timing 2.0
 function navTiming(timingObject){
-  console.log('-- in navTiming function')
+  console.log('---test_metrics--- in navTiming metrics function')
   t=timingObject
   // let p=new URL(nav.name) // <- for use in browser // RUM
   let p=urllib.parse(timingObject.name) // <- for use in puppeteer // nodeJS
@@ -271,6 +223,7 @@ function navTiming(timingObject){
 
 // Resource Timing API
 function parseResources(res){
+  console.log('---test_metrics--- in resourceTiming metrics function')
   let returnResources={}
   for(r of res){
     // console.log(r)

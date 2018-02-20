@@ -1,0 +1,14 @@
+{
+  "name": "beaconcatcher",
+  "version": "1.0.0",
+  "description": "",
+  "main": "start.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ben Hastings",
+  "license": "MIT",
+  "dependencies": {
+    "restify": "^6.3.4"
+  }
+}

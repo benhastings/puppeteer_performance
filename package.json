@@ -1,0 +1,28 @@
+{
+  "name": "puppeteer_performance",
+  "version": "1.0.0",
+  "description": "",
+  "main": "performanceTest.js",
+  "dependencies": {
+    "jest": "^22.2.2",
+    "puppeteer": "^1.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benhastings/puppeteer_performance.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/benhastings/puppeteer_performance/issues"
+  },
+  "homepage": "https://github.com/benhastings/puppeteer_performance#readme",
+  "pkg": {
+
+    "assets": "/node_modules/puppeteer/.local-chromium/mac-526987/chrome-mac/Chromium.app/Contents/MacOS/Chromium"
+  }
+}
