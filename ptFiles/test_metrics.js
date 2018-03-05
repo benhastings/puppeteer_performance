@@ -7,25 +7,36 @@ const http = require('http');
 //    'page' - navigationTiming 1.0 API & google paint timing > > > RUM
 //    'memory' - capture memory observations
 //    'user' - userTiming API (performance.mark)  > > > RUM
-//    'metrics' - puppeteer page metrics not exposed out
+//    'metrics' - puppeteer page metrics not exposed by API
 //
 // ******************************************************************************/
-exports.collectMetrics = async function(page,testMeta,startTime,types){
-  console.log('-- collectMetrics --')
+exports.collectMetrics = async function(page,testMeta,startTime,navTimingRequested){
+  const run_type=testMeta.loglevel
+  if(run_type==='dev'){
+    console.log('collectMetrics function :: navTimingRequested value', navTimingRequested)
+    console.log('-- collectMetrics --')}
+    console.time('collectMetricsFunction')
   // console.log(testMeta,'testMeta')
 
   metrics={}
+
+
+  commonMetricBase=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+"'"+startTime+"'"+testMeta.sessID+'!'
+
 
   //***********************************************************************
   //  Navigation Start
   let ns = JSON.parse(await page.evaluate(
         () => JSON.stringify(window.performance.timing.navigationStart)
       ));
-  console.log('ns',ns)
+  if(run_type==='dev'){
+    console.log('ns',ns)}
 
   //***********************************************************************
   //  Resource Timing
-  console.time('captureResources')
+  if(run_type==='dev'){
+    console.time('captureResources')}
+
   let res = JSON.parse(await page.evaluate(
         () => JSON.stringify(window.performance.getEntriesByType('resource'))
       ));
@@ -33,35 +44,67 @@ exports.collectMetrics = async function(page,testMeta,startTime,types){
   await page.evaluate(() => window.performance.clearResourceTimings())
 
   let resource_object = parseResources(res)
-
-  console.timeEnd('captureResources')
+  if(run_type==='dev'){
+    console.timeEnd('captureResources')}
   // console.log(resource_object,'resource_object')
 
 
   //***********************************************************************
-  //  Navigation Timing
-  // nav=performance.getEntriesByType('navigation')[0]
-  console.time('captureNav')
-  const nav = JSON.parse(await page.evaluate(
-        () => JSON.stringify(window.performance.getEntriesByType('navigation'))
-      ));
+  //  If a "hard" navigation event and page level timings requested
+  //
+  if(navTimingRequested===true){
+    //***********************************************************************
+    //  Navigation Timing
+    // nav=performance.getEntriesByType('navigation')[0]
+    if(run_type==='dev'){
+      console.time('captureNav')}
+    console.log('captureNav')
+    console.time('captureNav')
 
-  // console.log(nav[0])
+    const nav = JSON.parse(await page.evaluate(
+          () => JSON.stringify(window.performance.getEntriesByType('navigation'))
+        ));
 
-  const navigation_object = navTiming(nav[0])
-  console.timeEnd('captureNav')
-  // console.log(navigation_object)
+    // console.log(nav[0])
 
-  // Add Navigation Timing to other Resources
-  if(resource_object[navigation_object['host']]===undefined) resource_object[navigation_object['host']]=[]
-  resource_object[navigation_object['host']].push(navigation_object['entry'])
+    const navigation_object = navTiming(nav[0])
+    if(run_type==='dev'){
+      console.timeEnd('captureNav')}
+    console.timeEnd('captureNav')
+    // console.log(navigation_object)
 
+    // Add Navigation Timing to other Resources
+    if(resource_object[navigation_object['host']]===undefined) resource_object[navigation_object['host']]=[]
+    resource_object[navigation_object['host']].push(navigation_object['entry'])
+
+
+    //***********************************************************************
+    //  Paint Timing
+    // paint_object = performance.getEntriesByType('paint') !== [] ? performance.getEntriesByType('paint') : []
+    if(run_type==='dev'){
+      console.time('capturePaint')}
+    let paint_object = JSON.parse(await page.evaluate(
+          () => JSON.stringify(window.performance.getEntriesByType('paint'))
+        ));
+
+    metrics['paint']=paint_object
+    if(run_type==='dev'){
+      console.time('capturePaint')}
+
+    page_object=timing(nav[0],paint_object,ns)
+    // page_object.send=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+"'"+startTime+"'"+testMeta.sessID+'!'+page_object.send
+    page_object.send=commonMetricBase+page_object.send
+    metrics['page']=page_object
+
+
+  }
   // metrics['resources']=resource_object
   //***********************************************************************
   // ----------------------------------------------------
   // Combine resources & page level timing
   startTime = startTime > 0 ? startTime : ns
-  resLine=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+"'"+startTime+'!'
+  // resLine=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+"'"+startTime+"'"+testMeta.sessID+'!'
+  resLine=commonMetricBase
   for(s in resource_object){
     // console.log(s)
     resLine+=s+'('+resource_object[s].join('+')+')'
@@ -70,29 +113,63 @@ exports.collectMetrics = async function(page,testMeta,startTime,types){
   metrics['resourceLine']=resLine
   // ----------------------------------------------------
 
+
   //***********************************************************************
-  //  Paint Timing
+  //  User Timing
   // paint_object = performance.getEntriesByType('paint') !== [] ? performance.getEntriesByType('paint') : []
-  let paint_object = JSON.parse(await page.evaluate(
-        () => JSON.stringify(window.performance.getEntriesByType('paint'))
+  if(run_type==='dev'){
+    console.time('captureUserMarks')}
+    let user_marks=[]
+    user_marks = JSON.parse(await page.evaluate(
+        () => JSON.stringify(window.performance.getEntriesByType('mark'))
       ));
+    console.log('user_marks',user_marks)
+    // Flush already captured resources
+    await page.evaluate(() => window.performance.clearMarks())
+  if(user_marks.length>0){
+    userTStr=commonMetricBase
+    console.log('user_marks',user_marks)
+    for(m in user_marks){
+      name=user_marks[m].name.replace(/:/g,'__')
+      ts=Math.round(user_marks[m].startTime)
+      console.log('user mark\t',name,ts)
+      if(ts > 0){
+        userTStr+=name+'-'+ts
+      }
+      if(m < user_marks.length-1){userTStr+="'"}
+    }
+    console.log(userTStr)
+    metrics['userString']=userTStr
+  }
 
-  let memory = JSON.parse(await page.evaluate(
-        () => JSON.stringify({'used':performance.memory.usedJSHeapSize,'total':performance.memory.usedJSHeapSize,'limit':performance.memory.jsHeapSizeLimit})
-      ));
 
-  page_object=timing(nav[0],paint_object,ns)
-  page_object.send=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+'!'+page_object.send
-  metrics['page']=page_object
+
 
 
   //***********************************************************************
   //  Browser Metrics
   let browserMetrics=await page.metrics()
+  let memory = JSON.parse(await page.evaluate(
+        () => JSON.stringify({'used':performance.memory.usedJSHeapSize,'total':performance.memory.usedJSHeapSize,'limit':performance.memory.jsHeapSizeLimit})
+      ));
   browserMetrics['memory']=memory
 
+  // let domLevels = await page.evaluate(
+  //   () =>{
+  //     function getNestedLevel (el) {var level = 0;while (el = el.parentNode) {level++;}return level;}
+  //     levels=[].slice.call(document.querySelectorAll('*'))
+  //       .map(function (el) {return getNestedLevel(el)})
+  //       .sort((a,b)=>{return a-b});
+  //     return levels
+  //     // JSON.stringify(levels)
+  //   }
+  // )
+  // browserMetrics['domLevels']=domLevels
+
   let finalBrowserMetrics = browserProcess(browserMetrics,testMeta,ns)
-  finalBrowserMetrics.send=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+'!'+finalBrowserMetrics.send
+  // finalBrowserMetrics.send=testMeta.product+"'"+testMeta.env+"'"+testMeta.pgNm+"'"+ns+"'"+testMeta.sessID+'!'+finalBrowserMetrics.send
+  finalBrowserMetrics.send=commonMetricBase+finalBrowserMetrics.send
+
   metrics['browser']=finalBrowserMetrics
   //!!!!!!!!!!!!!!  Later !!!!!!!!!!!!!!!!!!
   // //***********************************************************************
@@ -103,7 +180,10 @@ exports.collectMetrics = async function(page,testMeta,startTime,types){
   //
   // }
 
-  console.log(Object.keys(metrics))
+  if(run_type==='dev'){
+    console.time('collectMetricsFunction')
+    console.log(Object.keys(metrics))}
+
   return metrics
 
 }
@@ -119,8 +199,8 @@ exports.sendMetrics = function(page,path,data){
   // await page.evaluate((path,data) => window.navigator.sendBeacon(path,data) ) <-- Try again in a RUM environment
 
   options={
-    hostname:'localhost',
-    port:8080,
+    hostname:'vc2crtp2318334n.fmr.com',
+    port:18081,
     method:'POST',
     path:path
   }
@@ -137,13 +217,48 @@ exports.sendMetrics = function(page,path,data){
 //***********************************************************************
 // Metrics Processing functions
 
+//=====================================================================
+//  Helper functions to quantify DOM Depth
+function quantileOfSorted(array, percentile) {
+  console.time('percentile'+percentile)
+  index = percentile/100. * (array.length-1);
+  console.timeEnd('percentile'+percentile)
+  return array[Math.round(index)]
+}
+// Simple average or mean calculation
+function getAverage (arr) {
+  return arr.reduce(function (prev, cur) {
+    return prev + cur;
+  }) / arr.length;
+}
+// Combine functions to caluculate DOM depth statistics
+function calculateDomDepth (levelsArray) {
+  console.time('totalDomDepthCalc')
+  // var all = [].slice.call(document.querySelectorAll('*'));
+  // var levels = all.map(function (el) {
+  //   return getNestedLevel(el);
+  //   })
+  var levels=levelsArray.sort((a,b)=>{return a-b});
+
+  var mean=Math.round(getAverage(levels))
+
+  console.timeEnd('totalDomDepthCalc')
+
+  return({'total':all.length,'max':levels[levels.length-1],'mean':mean,'median':quantileOfSorted(levels,50),'p90':quantileOfSorted(levels,90)})
+}
 // Browser Metrics
 function browserProcess(browser_ob,meta,navStart){
-  console.log('---test_metrics--- in browser metrics function')
+  if(run_type==='dev'){
+    console.log('---test_metrics--- in browser metrics function')}
   // console.log('browser_ob',browser_ob)
   // console.log('meta',meta)
   //
   b={}
+
+
+depths=calculateDomDepth()
+console.log('test_metrics::browserProcess::domDepth',depths)
+
 
   b.dom_nodes=browser_ob.Nodes;
   b.layout=browser_ob.LayoutCount+'-'+Math.round(browser_ob.LayoutDuration*1000);
@@ -164,9 +279,22 @@ function browserProcess(browser_ob,meta,navStart){
 
 }
 
+pg_timers={
+  '0':'navigationStart',
+  '1':'redirect',
+  '2':'dns',
+  '3':'tcp',
+  '4':'ttfb',
+  '5':'html',
+  '6':'fpaint',
+  '7':'fpaintC',
+  '8':'pgl'
+}
+
 // Navigation Timing 1.0
 function timing(nav_ob,paint,navStart){
-  console.log('---test_metrics--- in timing metrics function')
+  if(run_type==='dev'){
+    console.log('---test_metrics--- in timing metrics function')}
   // console.log('nav_ob',nav_ob)
   // console.log('paint',paint)
   t={}
@@ -176,7 +304,7 @@ function timing(nav_ob,paint,navStart){
   t.ttfb = Math.round(nav_ob.responseStart)
   t.html = Math.round(nav_ob.responseEnd)
   t.pgl = Math.round(nav_ob.loadEventEnd)
-  paint.map((p)=>{
+  paint.map((p)=>{  // works fine for chrome only - not a solution for RUM
     if(p.name.indexOf('contentful') > -1) { t.fpaintC = Math.round(p.startTime)}
     if(p.name.indexOf('contentful') == -1) {t.fpaint = Math.round(p.startTime)}
   })
@@ -192,12 +320,14 @@ function timing(nav_ob,paint,navStart){
 
 // Navigation Timing 2.0
 function navTiming(timingObject){
-  console.log('---test_metrics--- in navTiming metrics function')
+  if(run_type==='dev'){
+    console.log('---test_metrics--- in navTiming metrics function')}
   t=timingObject
   // let p=new URL(nav.name) // <- for use in browser // RUM
   let p=urllib.parse(timingObject.name) // <- for use in puppeteer // nodeJS
+  // console.log('navTiming url:',p)
   host=p.hostname
-  pn=p.pathname.split('/')
+  pn=p.pathname !== null && p.pathname !== undefined ? p.pathname.split('/') : ['']
   file_op=pn.pop()
   file_name = file_op !== '' ? file_op : pn.pop()
   file = file_name === '' ? 'root' : file_name
@@ -213,17 +343,49 @@ function navTiming(timingObject){
   resS = Math.round(t.responseStart)
   dur = Math.round(t.duration)
   file += "'"+redS+"'"+redE+"'"+dnsS+"'"+dnsE+"'"+conS+"'"+conE+"'"+reqS+"'"+resS+"'"+dur
-
+  file += '*11' // add identifier for HTML resource
   file += '*'+t.transferSize+"'"+t.encodedBodySize+"'"+t.decodedBodySize
 
   navigation_entry={'host':host,'entry':file}
   return navigation_entry
 }
 
+typeMapSend = {
+    css: 0,
+    img: 1,
+    link: 2,
+    script: 3,
+    xmlhttprequest: 4,
+    xmlhttprequest: 4,
+    frame: 5,
+    iframe: 5,
+    embed: 5,
+    object: 6,
+    subdocument: 7,
+    svg: 8,
+    other: 9,
+    beacon:10,
+    html:11
+};
+typeMapRcv = {
+    0:'css',
+    1:'img',
+    2:'link',
+    3:'script',
+    4:'xhr',
+    5:'frame',
+    6:'object',
+    7:'subdocument',
+    8:'svg',
+    9:'other',
+    10:'beacon',
+    11:'html'
+};
 
 // Resource Timing API
 function parseResources(res){
-  console.log('---test_metrics--- in resourceTiming metrics function')
+  if(run_type==='dev'){
+    console.log('---test_metrics--- in resourceTiming metrics function')}
   let returnResources={}
   for(r of res){
     // console.log(r)
@@ -235,6 +397,16 @@ function parseResources(res){
     pn=p.pathname.split('/')
     file_op=pn.pop()
     file = file_op !== '' ? file_op : pn.pop()
+    if(file.indexOf('%')){
+      file=file.split('%').pop()
+    }
+    if(file.indexOf(',')){
+      file=file.split(',').pop()
+    }
+    if(file.indexOf('=')){
+      file=file.split('=').pop()
+    }
+
     file += '*'+Math.round(r.startTime*100)/100
     redS = r.redirectStart === 0 ? 0 : Math.round(r.redirectStart-r.startTime)
     redE = r.redirectEnd === 0 ? 0 : Math.round(r.redirectEnd-r.startTime)
@@ -247,6 +419,12 @@ function parseResources(res){
     dur = r.duration === 0 ? 0 : Math.round(r.duration)
     file += "'"+redS+"'"+redE+"'"+dnsS+"'"+dnsE+"'"+conS+"'"+conE+"'"+reqS+"'"+resS+"'"+dur
 
+    res_type_idx = typeMapSend[r.initiatorType] !== undefined ? typeMapSend[r.initiatorType] : '9'
+    if(res_type_idx === '9'){
+      console.log('\n-- novel initiatorType ::',r.initiatorType,'--\n')
+    }
+    file += '*'+res_type_idx
+
     // console.log(r.decodedBodySize,r.encodedBodySize,r.transferSize)
     if(r.transferSize !==0 && r.encodedBodySize !==0 && r.decodedBodySize !==0){
       file += '*'+r.transferSize+"'"+r.encodedBodySize+"'"+r.decodedBodySize
@@ -254,6 +432,8 @@ function parseResources(res){
     // console.log(file)
     returnResources[host].push(file)
   }
+
+  // console.log(JSON.stringify(returnResources))
 
   return returnResources
 

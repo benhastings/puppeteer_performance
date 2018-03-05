@@ -1,0 +1,28 @@
+{
+  "name": "fileCatcherAPI",
+  "version": "0.2.0",
+  "description": "APIs to allow testFile creation on a running UX performance test host from within docker",
+  "author": "Ben Hastings <ben.hastings@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://itec-stash.fmr.com/projects/AP116455/repos/ap116455-helios_performancetest"
+  },
+  "bugs": {
+    "url": "https://itec-jira.fmr.com/projects/HELIOS/issues"
+  },
+  "main": "fileCatcher.js",
+  "scripts": {
+    "start": "node fileCatcher.js"
+  },
+  "keywords": [
+    "performance",
+    "javascript",
+    "node",
+    "C2C"
+  ],
+  "dependencies": {
+    "restify": "^6.3.2",
+    "restify-cors-middleware": "^1.0.1"
+  },
+  "license": "BSD"
+}
