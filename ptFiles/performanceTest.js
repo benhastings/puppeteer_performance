@@ -287,11 +287,9 @@ async function runTheTest(testDef,testMetadata){
        console.log('generate creds for SSO')}
      creds = new Buffer(testDef.sso.uid+':'+testDef.sso.pwd).toString('base64')
      // console.log('creds',creds)
-     // page.setExtraHTTPHeaders({'Authorization': 'Basic YTU4NDc4MDpXaWxsb3cwOA=='})
      page.setExtraHTTPHeaders({'Authorization': 'Basic '+creds})
      // this is superceded by page.emulate('devicename')
-     page.setUserAgent('Automation - helios_ux_pt')
-     // page.setUserAgent('Automation')
+     page.setUserAgent('Automation')
 
 
    }

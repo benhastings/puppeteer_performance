@@ -1,5 +1,5 @@
-// var http = require('http');
-var https = require('https')
+var http = require('http');
+//var https = require('https')
 var querystring = require('querystring');
 
 const PORT = 18081;
@@ -9,9 +9,9 @@ console.log(hgKey)
 
 DEBUG=true
 
-var key = fs.readFileSync('encryption/private.key');
-var cert = fs.readFileSync( 'encryption/beaconCatcher.crt' );
-var ca = fs.readFileSync( 'encryption/intermediate.crt' );
+//var key = fs.readFileSync('encryption/private.key');
+//var cert = fs.readFileSync( 'encryption/beaconCatcher.crt' );
+//var ca = fs.readFileSync( 'encryption/intermediate.crt' );
 
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

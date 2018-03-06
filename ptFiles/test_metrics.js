@@ -199,7 +199,7 @@ exports.sendMetrics = function(page,path,data){
   // await page.evaluate((path,data) => window.navigator.sendBeacon(path,data) ) <-- Try again in a RUM environment
 
   options={
-    hostname:'vc2crtp2318334n.fmr.com',
+    hostname:'localhost',
     port:18081,
     method:'POST',
     path:path
@@ -217,35 +217,35 @@ exports.sendMetrics = function(page,path,data){
 //***********************************************************************
 // Metrics Processing functions
 
-//=====================================================================
-//  Helper functions to quantify DOM Depth
-function quantileOfSorted(array, percentile) {
-  console.time('percentile'+percentile)
-  index = percentile/100. * (array.length-1);
-  console.timeEnd('percentile'+percentile)
-  return array[Math.round(index)]
-}
-// Simple average or mean calculation
-function getAverage (arr) {
-  return arr.reduce(function (prev, cur) {
-    return prev + cur;
-  }) / arr.length;
-}
+// //=====================================================================
+// //  Helper functions to quantify DOM Depth
+// function quantileOfSorted(array, percentile) {
+//   console.time('percentile'+percentile)
+//   index = percentile/100. * (array.length-1);
+//   console.timeEnd('percentile'+percentile)
+//   return array[Math.round(index)]
+// }
+// // Simple average or mean calculation
+// function getAverage (arr) {
+//   return arr.reduce(function (prev, cur) {
+//     return prev + cur;
+//   }) / arr.length;
+// }
 // Combine functions to caluculate DOM depth statistics
-function calculateDomDepth (levelsArray) {
-  console.time('totalDomDepthCalc')
-  // var all = [].slice.call(document.querySelectorAll('*'));
-  // var levels = all.map(function (el) {
-  //   return getNestedLevel(el);
-  //   })
-  var levels=levelsArray.sort((a,b)=>{return a-b});
-
-  var mean=Math.round(getAverage(levels))
-
-  console.timeEnd('totalDomDepthCalc')
-
-  return({'total':all.length,'max':levels[levels.length-1],'mean':mean,'median':quantileOfSorted(levels,50),'p90':quantileOfSorted(levels,90)})
-}
+// function calculateDomDepth (levelsArray) {
+//   console.time('totalDomDepthCalc')
+//   // var all = [].slice.call(document.querySelectorAll('*'));
+//   // var levels = all.map(function (el) {
+//   //   return getNestedLevel(el);
+//   //   })
+//   var levels=levelsArray.sort((a,b)=>{return a-b});
+//
+//   var mean=Math.round(getAverage(levels))
+//
+//   console.timeEnd('totalDomDepthCalc')
+//
+//   return({'total':all.length,'max':levels[levels.length-1],'mean':mean,'median':quantileOfSorted(levels,50),'p90':quantileOfSorted(levels,90)})
+// }
 // Browser Metrics
 function browserProcess(browser_ob,meta,navStart){
   if(run_type==='dev'){
@@ -256,8 +256,8 @@ function browserProcess(browser_ob,meta,navStart){
   b={}
 
 
-depths=calculateDomDepth()
-console.log('test_metrics::browserProcess::domDepth',depths)
+// depths=calculateDomDepth()
+// console.log('test_metrics::browserProcess::domDepth',depths)
 
 
   b.dom_nodes=browser_ob.Nodes;
